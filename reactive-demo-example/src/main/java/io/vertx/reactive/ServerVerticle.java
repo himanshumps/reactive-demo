@@ -74,7 +74,7 @@ public class ServerVerticle extends AbstractVerticle {
                             .upsert(String.valueOf(counter), com.couchbase.client.java.json.JsonObject.create()
                                     .put("host", hostName)
                                     .put("port", port)
-                                    .put("identifier", "/" + counter));
+                                    .put("identifier", "/" + String.valueOf(counter)));
                 })
                 .last()
                 .subscribe();
@@ -130,7 +130,9 @@ public class ServerVerticle extends AbstractVerticle {
                 })
                 .flatMap(jsonObject -> {
                     return RxJavaBridge.toV3Single(webClient
-                            .get(jsonObject.getInt("port"), jsonObject.getString("host"), jsonObject.getString("identifier"))
+                            .get(jsonObject.getInt("port"),
+                                    jsonObject.getString("host"),
+                                    jsonObject.getString("identifier"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
