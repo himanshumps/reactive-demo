@@ -51,7 +51,7 @@ public class ServerVerticle extends AbstractVerticle {
 
         Router router = Router.router(vertx);
 
-        router.route().handler(LoggerHandler.create(LoggerFormat.DEFAULT));
+        router.route().handler(LoggerHandler.create(LoggerFormat.TINY));
 
         router.get("/health").handler(this::healthHandler);
 
