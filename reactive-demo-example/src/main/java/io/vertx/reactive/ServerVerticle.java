@@ -28,7 +28,6 @@ import reactor.core.publisher.Flux;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -72,7 +71,10 @@ public class ServerVerticle extends AbstractVerticle {
                 .range(0, 101)
                 .flatMap(counter -> {
                     return reactiveCollection
-                            .upsert(String.valueOf(counter), com.couchbase.client.java.json.JsonObject.create().put("url", MessageFormat.format("http://{0}:{1,number,#}/{2,number,#}", hostName, port, counter)));
+                            .upsert(String.valueOf(counter), com.couchbase.client.java.json.JsonObject.create()
+                                    .put("host", hostName)
+                                    .put("port", port)
+                                    .put("identifier", "/" + counter));
                 })
                 .last()
                 .subscribe();
@@ -120,7 +122,7 @@ public class ServerVerticle extends AbstractVerticle {
             idSet.add((int) (Math.random() * 100));
         } while (idSet.size() != 10);
         Flowable
-                .range(0,100)
+                .range(0, 100)
                 .observeOn(Schedulers.io())
                 .flatMap(id -> {
                     log.info("{} | Getting the url for id: {}", uuid, id);
@@ -128,7 +130,7 @@ public class ServerVerticle extends AbstractVerticle {
                 })
                 .flatMap(jsonObject -> {
                     return RxJavaBridge.toV3Single(webClient
-                            .getAbs(jsonObject.getString("url"))
+                            .get(jsonObject.getInt("port"), jsonObject.getString("host"), jsonObject.getString("identifier"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
