@@ -14,6 +14,7 @@ import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
 import io.vertx.reactivex.ext.web.client.HttpResponse;
 import io.vertx.reactivex.ext.web.client.WebClient;
+import io.vertx.reactivex.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
 
@@ -80,9 +81,9 @@ public class ServerVerticle extends AbstractVerticle {
                     log.info("Calling the url: {}", url);
                     return webClient
                             .getAbs(url)
+                            .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
                             .as(RxJavaBridge.toV3Single())
-                            .observeOn(io.reactivex.rxjava3.schedulers.Schedulers.io())
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Throwable {
