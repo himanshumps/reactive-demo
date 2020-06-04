@@ -11,6 +11,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.reactivex.core.AbstractVerticle;
+import io.vertx.reactivex.core.RxHelper;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
@@ -87,7 +88,6 @@ public class ServerVerticle extends AbstractVerticle {
                             .getAbs(url)
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
-                            .observeOn(Schedulers.io())
                             .map(new io.reactivex.functions.Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
@@ -97,7 +97,7 @@ public class ServerVerticle extends AbstractVerticle {
                             })
                             .toFlowable();
                 })
-                .observeOn(Schedulers.io())
+                .observeOn(Schedulers.computation())
                 .toList()
                 .map(listOfJsonResponses -> {
                     log.info("Creating the json array for the responses received");
@@ -107,6 +107,7 @@ public class ServerVerticle extends AbstractVerticle {
                     }
                     return jsonArray;
                 })
+                .subscribeOn(RxHelper.scheduler(vertx.getOrCreateContext()))
                 .subscribe(results ->
                                 routingContext.response().setStatusCode(200).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(results.encodePrettily())
                         , error ->
