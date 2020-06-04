@@ -1,8 +1,10 @@
 package io.vertx.reactive;
 
 import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
+import io.reactivex.Scheduler;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.functions.Function;
+import io.reactivex.schedulers.Schedulers;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.json.JsonArray;
@@ -45,6 +47,8 @@ public class ServerVerticle extends AbstractVerticle {
 
         router.get("/health").handler(this::healthHandler);
 
+        router.get("/rxjava2").handler(this::rxjava3);
+
         router.get("/rxjava3").handler(this::rxjava3);
 
         router.get("/mutiny").handler(this::mutiny);
@@ -66,6 +70,48 @@ public class ServerVerticle extends AbstractVerticle {
 
     private void healthHandler(RoutingContext routingContext) {
         routingContext.response().setStatusCode(200).end(new JsonObject().put("health", "ok").encode());
+    }
+
+    private void rxjava2(RoutingContext routingContext) {
+        Set<Integer> idSet = new HashSet<>();
+        do {
+            idSet.add((int) (Math.random() * 100));
+        } while (idSet.size() != 10);
+        io.reactivex.Flowable
+                .fromIterable(idSet)
+                .observeOn(Schedulers.io())
+                .flatMap(id -> {
+                    String url = MessageFormat.format("http://{0}:{1,number,#}/{2,number,#}", hostName, port, id);
+                    log.info("Calling the url: {}", url);
+                    return webClient
+                            .getAbs(url)
+                            .expect(ResponsePredicate.status(200, 202))
+                            .rxSend()
+                            .observeOn(Schedulers.io())
+                            .map(new io.reactivex.functions.Function<HttpResponse<Buffer>, JsonObject>() {
+                                @Override
+                                public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
+                                    log.info("Received response for: {}", id);
+                                    return bufferHttpResponse.bodyAsJsonObject();
+                                }
+                            })
+                            .toFlowable();
+                })
+                .observeOn(Schedulers.io())
+                .toList()
+                .map(listOfJsonResponses -> {
+                    log.info("Creating the json array for the responses received");
+                    JsonArray jsonArray = new JsonArray();
+                    for (JsonObject jsonObject : listOfJsonResponses) {
+                        jsonArray.add(jsonObject);
+                    }
+                    return jsonArray;
+                })
+                .subscribe(results ->
+                                routingContext.response().setStatusCode(200).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(results.encodePrettily())
+                        , error ->
+                                routingContext.response().setStatusCode(500).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(new JsonObject().put("error", getStackTrace(error)).encodePrettily())
+                );
     }
 
     private void rxjava3(RoutingContext routingContext) {
