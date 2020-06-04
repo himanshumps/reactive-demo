@@ -112,7 +112,7 @@ public class ServerVerticle extends AbstractVerticle {
         } while (idSet.size() != 10);
         Flowable
                 .fromIterable(idSet)
-                .observeOn(Schedulers.newThread())
+                .observeOn(Schedulers.io())
                 .flatMap(id -> {
                     log.info("Getting the url for id: {}", id);
                     return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id))).observeOn(Schedulers.newThread()).map(getResult -> getResult.contentAsObject()).toFlowable();
@@ -130,9 +130,8 @@ public class ServerVerticle extends AbstractVerticle {
                                 }
                             }))
                             .toFlowable();
-
                 })
-                .observeOn(Schedulers.newThread())
+                .observeOn(Schedulers.io())
                 .toList()
                 .map(listOfJsonResponses -> {
                     log.info("Creating the json array for the responses received");
