@@ -6,10 +6,12 @@ import io.reactivex.rxjava3.functions.Function;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.reactivex.core.AbstractVerticle;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
+import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import io.vertx.reactivex.pgclient.PgPool;
 import io.vertx.reactivex.sqlclient.Row;
 import io.vertx.reactivex.sqlclient.Tuple;
@@ -48,6 +50,8 @@ public class ServerVerticle extends AbstractVerticle {
         client = PgPool.pool(vertx, connectOptions, poolOptions);
 
         Router router = Router.router(vertx);
+
+        router.route().handler(LoggerHandler.create(LoggerFormat.DEFAULT));
 
         router.get("/health").handler(this::healthHandler);
 
