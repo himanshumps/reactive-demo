@@ -10,6 +10,7 @@ import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.handler.LoggerFormat;
@@ -48,6 +49,7 @@ public class ServerVerticle extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
         super.start();
+
         // Webclient
         webClient = WebClient.create(vertx);
 
@@ -88,7 +90,11 @@ public class ServerVerticle extends AbstractVerticle {
         router.get("/reactor").handler(this::reactor);
 
         // HTTP Server
-        vertx.createHttpServer()
+        vertx.createHttpServer(new HttpServerOptions()
+                .setTcpFastOpen(true)
+                .setTcpQuickAck(true)
+                .setTcpNoDelay(true)
+                .setReusePort(true))
                 .requestHandler(router)
                 .listen(serverPort, result -> {
                     if (result.succeeded()) {
@@ -99,6 +105,7 @@ public class ServerVerticle extends AbstractVerticle {
                         startPromise.fail(result.cause());
                     }
                 });
+        log.info("vertx.prefer-native-transport: " + vertx.isNativeTransportEnabled());
     }
 
     private void healthHandler(RoutingContext routingContext) {
