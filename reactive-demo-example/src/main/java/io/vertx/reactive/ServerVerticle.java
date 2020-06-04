@@ -53,7 +53,7 @@ public class ServerVerticle extends AbstractVerticle {
 
         //Couchbase
         ClusterEnvironment env = ClusterEnvironment.builder().ioConfig(IoConfig.maxHttpConnections(100)).timeoutConfig(TimeoutConfig.connectTimeout(Duration.ofSeconds(120))).build();
-        ReactiveCluster reactiveCluster = Cluster.connect("couchbase.reactive-demo.svc.cluster.local", ClusterOptions
+        ReactiveCluster reactiveCluster = Cluster.connect("172.30.55.135", ClusterOptions
                 .clusterOptions("reactive", "reactive")
                 .environment(env)).reactive();
         ReactiveBucket reactiveBucket = reactiveCluster.bucket("reactive");
