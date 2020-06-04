@@ -126,7 +126,7 @@ public class ServerVerticle extends AbstractVerticle {
                 .observeOn(Schedulers.io())
                 .flatMap(id -> {
                     log.info("{} | Getting the url for id: {}", uuid, id);
-                    return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id))).observeOn(Schedulers.newThread()).map(getResult -> getResult.contentAsObject()).toFlowable();
+                    return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id))).observeOn(Schedulers.io()).map(getResult -> getResult.contentAsObject()).toFlowable();
                 })
                 .flatMap(jsonObject -> {
                     return RxJavaBridge.toV3Single(webClient
