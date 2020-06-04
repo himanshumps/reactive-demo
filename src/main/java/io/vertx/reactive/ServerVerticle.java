@@ -3,13 +3,13 @@ package io.vertx.reactive;
 import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.functions.Function;
-import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.Router;
-import io.vertx.ext.web.RoutingContext;
 import io.vertx.pgclient.PgConnectOptions;
+import io.vertx.reactivex.core.AbstractVerticle;
+import io.vertx.reactivex.ext.web.Router;
+import io.vertx.reactivex.ext.web.RoutingContext;
 import io.vertx.reactivex.pgclient.PgPool;
 import io.vertx.reactivex.sqlclient.Row;
 import io.vertx.reactivex.sqlclient.Tuple;
@@ -45,7 +45,7 @@ public class ServerVerticle extends AbstractVerticle {
         PoolOptions poolOptions = new PoolOptions().setMaxSize(100);
 
         // Create the client pool
-        client = PgPool.pool(connectOptions, poolOptions);
+        client = PgPool.pool(vertx, connectOptions, poolOptions);
 
         Router router = Router.router(vertx);
 
