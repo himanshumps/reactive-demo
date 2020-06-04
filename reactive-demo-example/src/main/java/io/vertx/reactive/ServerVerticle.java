@@ -29,6 +29,7 @@ public class ServerVerticle extends AbstractVerticle {
 
     private final String hostName = "json-server.reactive-demo.svc.cluster.local";
     private final int port = 8080;
+
     private WebClient webClient;
 
     @Override
