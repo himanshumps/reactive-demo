@@ -32,6 +32,7 @@ import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 
 @Slf4j
@@ -113,15 +114,16 @@ public class ServerVerticle extends AbstractVerticle {
     }
 
     private void rxjava3(RoutingContext routingContext) {
+        final String uuid = UUID.randomUUID().toString();
         Set<Integer> idSet = new HashSet<>();
         do {
             idSet.add((int) (Math.random() * 100));
         } while (idSet.size() != 10);
         Flowable
-                .fromIterable(idSet)
+                .range(0,100)
                 .observeOn(Schedulers.io())
                 .flatMap(id -> {
-                    log.info("Getting the url for id: {}", id);
+                    log.info("{} | Getting the url for id: {}", uuid, id);
                     return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id))).observeOn(Schedulers.newThread()).map(getResult -> getResult.contentAsObject()).toFlowable();
                 })
                 .flatMap(jsonObject -> {
@@ -132,7 +134,7 @@ public class ServerVerticle extends AbstractVerticle {
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info("Received response for: {}", jsonObject.getString("url"));
+                                    log.info("{} | Received response for: {}", uuid, jsonObject.getString("url"));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
                             }))
@@ -141,7 +143,7 @@ public class ServerVerticle extends AbstractVerticle {
                 .observeOn(Schedulers.io())
                 .toList()
                 .map(listOfJsonResponses -> {
-                    log.info("Creating the json array for the responses received");
+                    log.info("{} | Creating the json array for the responses received", uuid);
                     JsonArray jsonArray = new JsonArray();
                     for (JsonObject jsonObject : listOfJsonResponses) {
                         jsonArray.add(jsonObject);
