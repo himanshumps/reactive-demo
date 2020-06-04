@@ -1,17 +1,19 @@
 package io.vertx.reactive;
 
+import com.couchbase.client.core.env.IoConfig;
+import com.couchbase.client.core.env.TimeoutConfig;
+import com.couchbase.client.java.*;
+import com.couchbase.client.java.env.ClusterEnvironment;
 import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
-import io.reactivex.Scheduler;
+import io.reactivex.functions.Function;
 import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.functions.Function;
-import io.reactivex.schedulers.Schedulers;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.reactivex.core.AbstractVerticle;
-import io.vertx.reactivex.core.RxHelper;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
@@ -20,12 +22,16 @@ import io.vertx.reactivex.ext.web.client.WebClient;
 import io.vertx.reactivex.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
+import reactor.adapter.rxjava.RxJava3Adapter;
+import reactor.core.publisher.Flux;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.MessageFormat;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+
 
 @Slf4j
 public class ServerVerticle extends AbstractVerticle {
@@ -36,19 +42,44 @@ public class ServerVerticle extends AbstractVerticle {
 
     private WebClient webClient;
 
+    private ReactiveCollection reactiveCollection;
+
+
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
         super.start();
-
+        // Webclient
         webClient = WebClient.create(vertx);
 
+        //Couchbase
+        ClusterEnvironment env = ClusterEnvironment.builder().ioConfig(IoConfig.maxHttpConnections(100)).timeoutConfig(TimeoutConfig.connectTimeout(Duration.ofSeconds(120))).build();
+        ReactiveCluster reactiveCluster = Cluster.connect("couchbase.reactive-demo.svc.cluster.local", ClusterOptions
+                .clusterOptions("reactive", "reactive")
+                .environment(env)).reactive();
+        ReactiveBucket reactiveBucket = reactiveCluster.bucket("reactive");
+        reactiveCollection = reactiveBucket.defaultCollection();
+        try {
+            // Make the dummy couchbase call to start the client
+            reactiveCollection.get("GARBAGE").block();
+        } catch (Exception e) {
+        }
+
+        // Insert the test data
+        Flux
+                .range(0, 101)
+                .flatMap(counter -> {
+                    return reactiveCollection
+                            .upsert(String.valueOf(counter), com.couchbase.client.java.json.JsonObject.create().put("url", MessageFormat.format("http://{0}:{1,number,#}/{2,number,#}", hostName, port, counter)));
+                })
+                .last()
+                .subscribe();
+
+        // Router
         Router router = Router.router(vertx);
 
         router.route().handler(LoggerHandler.create(LoggerFormat.TINY));
 
         router.get("/health").handler(this::healthHandler);
-
-        router.get("/rxjava2").handler(this::rxjava3);
 
         router.get("/rxjava3").handler(this::rxjava3);
 
@@ -56,6 +87,7 @@ public class ServerVerticle extends AbstractVerticle {
 
         router.get("/reactor").handler(this::reactor);
 
+        // HTTP Server
         vertx.createHttpServer()
                 .requestHandler(router)
                 .listen(serverPort, result -> {
@@ -73,48 +105,6 @@ public class ServerVerticle extends AbstractVerticle {
         routingContext.response().setStatusCode(200).end(new JsonObject().put("health", "ok").encode());
     }
 
-    private void rxjava2(RoutingContext routingContext) {
-        Set<Integer> idSet = new HashSet<>();
-        do {
-            idSet.add((int) (Math.random() * 100));
-        } while (idSet.size() != 10);
-        io.reactivex.Flowable
-                .fromIterable(idSet)
-                .observeOn(Schedulers.io())
-                .flatMap(id -> {
-                    String url = MessageFormat.format("http://{0}:{1,number,#}/{2,number,#}", hostName, port, id);
-                    log.info("Calling the url: {}", url);
-                    return webClient
-                            .getAbs(url)
-                            .expect(ResponsePredicate.status(200, 202))
-                            .rxSend()
-                            .map(new io.reactivex.functions.Function<HttpResponse<Buffer>, JsonObject>() {
-                                @Override
-                                public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info("Received response for: {}", id);
-                                    return bufferHttpResponse.bodyAsJsonObject();
-                                }
-                            })
-                            .toFlowable();
-                })
-                .observeOn(Schedulers.computation())
-                .toList()
-                .map(listOfJsonResponses -> {
-                    log.info("Creating the json array for the responses received");
-                    JsonArray jsonArray = new JsonArray();
-                    for (JsonObject jsonObject : listOfJsonResponses) {
-                        jsonArray.add(jsonObject);
-                    }
-                    return jsonArray;
-                })
-                .subscribeOn(RxHelper.scheduler(vertx.getOrCreateContext()))
-                .subscribe(results ->
-                                routingContext.response().setStatusCode(200).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(results.encodePrettily())
-                        , error ->
-                                routingContext.response().setStatusCode(500).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(new JsonObject().put("error", getStackTrace(error)).encodePrettily())
-                );
-    }
-
     private void rxjava3(RoutingContext routingContext) {
         Set<Integer> idSet = new HashSet<>();
         do {
@@ -122,24 +112,27 @@ public class ServerVerticle extends AbstractVerticle {
         } while (idSet.size() != 10);
         Flowable
                 .fromIterable(idSet)
-                .subscribeOn(io.reactivex.rxjava3.schedulers.Schedulers.io())
+                .observeOn(Schedulers.newThread())
                 .flatMap(id -> {
-                    String url = MessageFormat.format("http://{0}:{1,number,#}/{2,number,#}", hostName, port, id);
-                    log.info("Calling the url: {}", url);
-                    return webClient
-                            .getAbs(url)
+                    log.info("Getting the url for id: {}", id);
+                    return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id))).observeOn(Schedulers.newThread()).map(getResult -> getResult.contentAsObject()).toFlowable();
+                })
+                .flatMap(jsonObject -> {
+                    return RxJavaBridge.toV3Single(webClient
+                            .getAbs(jsonObject.getString("url"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
-                            .as(RxJavaBridge.toV3Single())
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
-                                public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Throwable {
-                                    log.info("Received response for: {}", id);
+                                public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
+                                    log.info("Received response for: {}", jsonObject.getString("url"));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
-                            })
+                            }))
                             .toFlowable();
+
                 })
+                .observeOn(Schedulers.newThread())
                 .toList()
                 .map(listOfJsonResponses -> {
                     log.info("Creating the json array for the responses received");
