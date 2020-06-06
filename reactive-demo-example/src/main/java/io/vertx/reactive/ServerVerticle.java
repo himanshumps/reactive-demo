@@ -31,6 +31,7 @@ import reactor.core.publisher.Flux;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.UUID;
 
@@ -129,7 +130,7 @@ public class ServerVerticle extends AbstractVerticle {
                     return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id)))
                             .map(getResult -> getResult.contentAsObject())
                             .toFlowable()
-                            .doOnNext(e -> log.info("{} | Time taken in getting the url for id: {} is :{} ms", uuid, id, System.currentTimeMillis() - startTime));
+                            .doOnNext(e -> log.info(MessageFormat.format("{0} | Time taken in getting the url for id: {1} is: {2} ms", uuid, id, System.currentTimeMillis() - startTime)));
                 }, 100)
                 .observeOn(Schedulers.io())
                 .flatMap(jsonObject -> {
@@ -143,7 +144,7 @@ public class ServerVerticle extends AbstractVerticle {
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info("{} | Received response for: {} in {} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime);
+                                    log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
                             }))
