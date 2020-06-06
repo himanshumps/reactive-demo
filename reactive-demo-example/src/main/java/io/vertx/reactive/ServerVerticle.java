@@ -7,7 +7,6 @@ import com.couchbase.client.java.env.ClusterEnvironment;
 import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
 import io.reactivex.functions.Function;
 import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
@@ -30,7 +29,6 @@ import org.reactivestreams.Publisher;
 import reactor.adapter.rxjava.RxJava2Adapter;
 import reactor.adapter.rxjava.RxJava3Adapter;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Scheduler;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -140,7 +138,7 @@ public class ServerVerticle extends AbstractVerticle {
                     @Override
                     public Publisher<JsonObject> apply(com.couchbase.client.java.json.JsonObject jsonObject) throws Throwable {
                         long startTime = System.currentTimeMillis();
-                        io.reactivex.Flowable<JsonObject> map = webClient
+                        return RxJavaBridge.toV3Flowable(webClient
                                 .get(jsonObject.getInt("port"),
                                         jsonObject.getString("host"),
                                         jsonObject.getString("identifier"))
@@ -150,12 +148,12 @@ public class ServerVerticle extends AbstractVerticle {
                                 .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                     @Override
                                     public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
+                                        long startTime = System.currentTimeMillis();
                                         log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
                                         return bufferHttpResponse.bodyAsJsonObject();
                                     }
                                 })
-                                .toFlowable();
-                        return RxJavaBridge.toV3Flowable(map);
+                                .toFlowable());
                     }
                 })
                 .toList()
@@ -189,6 +187,7 @@ public class ServerVerticle extends AbstractVerticle {
                             .doOnNext(e -> log.info(MessageFormat.format("{0} | Time taken in getting the url for id: {1} is: {2} ms", uuid, id, System.currentTimeMillis() - startTime)));
                 })
                 .flatMap(jsonObject -> {
+                    long startTime = System.currentTimeMillis();
                     return RxJava2Adapter.singleToMono(webClient
                             .get(jsonObject.getInt("port"),
                                     jsonObject.getString("host"),
@@ -199,7 +198,6 @@ public class ServerVerticle extends AbstractVerticle {
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    long startTime = System.currentTimeMillis();
                                     log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
