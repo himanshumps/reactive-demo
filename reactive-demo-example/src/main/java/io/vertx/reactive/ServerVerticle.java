@@ -61,7 +61,8 @@ public class ServerVerticle extends AbstractVerticle {
                 .setDefaultPort(json_server_port)
                 .setSsl(false)
                 .setHttp2ClearTextUpgrade(false)
-                .setHttp2MaxPoolSize(10));
+                .setHttp2MaxPoolSize(10)
+                .setHttp2KeepAliveTimeout(60 * 60));
 
         //Couchbase
         ClusterEnvironment env = ClusterEnvironment.builder().ioConfig(IoConfig.maxHttpConnections(100)).timeoutConfig(TimeoutConfig.connectTimeout(Duration.ofSeconds(120))).build();
