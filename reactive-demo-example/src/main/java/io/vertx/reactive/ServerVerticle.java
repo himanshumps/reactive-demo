@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.adapter.rxjava.RxJava2Adapter;
 import reactor.adapter.rxjava.RxJava3Adapter;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -128,11 +129,11 @@ public class ServerVerticle extends AbstractVerticle {
                     log.info("{} | Getting the url for id: {}", uuid, id);
                     long startTime = System.currentTimeMillis();
                     return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id)))
+                            .observeOn(Schedulers.io())
                             .map(getResult -> getResult.contentAsObject())
                             .toFlowable()
                             .doOnNext(e -> log.info(MessageFormat.format("{0} | Time taken in getting the url for id: {1} is: {2} ms", uuid, id, System.currentTimeMillis() - startTime)));
-                }, 100)
-                .observeOn(Schedulers.io())
+                })
                 .flatMap(jsonObject -> {
                     long startTime = System.currentTimeMillis();
                     return RxJavaBridge.toV3Single(webClient
@@ -141,6 +142,7 @@ public class ServerVerticle extends AbstractVerticle {
                                     jsonObject.getString("identifier"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
+                            .observeOn(io.reactivex.schedulers.Schedulers.io())
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
@@ -149,9 +151,9 @@ public class ServerVerticle extends AbstractVerticle {
                                 }
                             }))
                             .toFlowable();
-                }, 100)
-                .observeOn(Schedulers.io())
+                })
                 .toList()
+                .observeOn(Schedulers.io())
                 .map(listOfJsonResponses -> {
                     log.info("{} | Creating the json array for the responses received", uuid);
                     JsonArray jsonArray = new JsonArray();
@@ -176,9 +178,10 @@ public class ServerVerticle extends AbstractVerticle {
                     log.info("{} | Getting the url for id: {}", uuid, id);
                     long startTime = System.currentTimeMillis();
                     return reactiveCollection.get(String.valueOf(id))
-                            .map(getResult -> getResult.contentAsObject());
-                }, 100)
-                .publishOn(reactor.core.scheduler.Schedulers.elastic())
+                            .publishOn(reactor.core.scheduler.Schedulers.elastic())
+                            .map(getResult -> getResult.contentAsObject())
+                            .doOnNext(e -> log.info(MessageFormat.format("{0} | Time taken in getting the url for id: {1} is: {2} ms", uuid, id, System.currentTimeMillis() - startTime)));
+                })
                 .flatMap(jsonObject -> {
                     return RxJava2Adapter.singleToMono(webClient
                             .get(jsonObject.getInt("port"),
@@ -186,17 +189,19 @@ public class ServerVerticle extends AbstractVerticle {
                                     jsonObject.getString("identifier"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
+                            .observeOn(io.reactivex.schedulers.Schedulers.io())
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info("{} | Received response for: {}", uuid, jsonObject.getString("identifier"));
+                                    long startTime = System.currentTimeMillis();
+                                    log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
                             }));
 
-                }, 100)
-                .publishOn(reactor.core.scheduler.Schedulers.elastic())
+                })
                 .collectList()
+                .publishOn(reactor.core.scheduler.Schedulers.elastic())
                 .map(listOfJsonResponses -> {
                     log.info("{} | Creating the json array for the responses received", uuid);
                     JsonArray jsonArray = new JsonArray();
