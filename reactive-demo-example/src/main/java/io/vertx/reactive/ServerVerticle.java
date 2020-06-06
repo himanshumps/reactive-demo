@@ -17,6 +17,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.reactivex.core.AbstractVerticle;
+import io.vertx.reactivex.core.RxHelper;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
@@ -26,8 +27,11 @@ import io.vertx.reactivex.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
+import reactor.adapter.rxjava.RxJava2Adapter;
 import reactor.adapter.rxjava.RxJava3Adapter;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -170,6 +174,48 @@ public class ServerVerticle extends AbstractVerticle {
     }
 
     private void reactor(RoutingContext routingContext) {
+        final String uuid = UUID.randomUUID().toString();
+        Flux
+                .range(0,100)
+                .publishOn(reactor.core.scheduler.Schedulers.elastic())
+                .flatMap(id -> {
+                    log.info("{} | Getting the url for id: {}", uuid, id);
+                    long startTime = System.currentTimeMillis();
+                    return reactiveCollection.get(String.valueOf(id))
+                            .map(getResult -> getResult.contentAsObject());
+                }, 100)
+                .publishOn(reactor.core.scheduler.Schedulers.elastic())
+                .flatMap(jsonObject -> {
+                    return RxJava2Adapter.singleToMono(webClient
+                            .get(jsonObject.getInt("port"),
+                                    jsonObject.getString("host"),
+                                    jsonObject.getString("identifier"))
+                            .expect(ResponsePredicate.status(200, 202))
+                            .rxSend()
+                            .map(new Function<HttpResponse<Buffer>, JsonObject>() {
+                                @Override
+                                public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
+                                    log.info("{} | Received response for: {}", uuid, jsonObject.getString("identifier"));
+                                    return bufferHttpResponse.bodyAsJsonObject();
+                                }
+                            }));
+
+                }, 100)
+                .publishOn(reactor.core.scheduler.Schedulers.elastic())
+                .collectList()
+                .map(listOfJsonResponses -> {
+                    log.info("{} | Creating the json array for the responses received", uuid);
+                    JsonArray jsonArray = new JsonArray();
+                    for (JsonObject jsonObject : listOfJsonResponses) {
+                        jsonArray.add(jsonObject);
+                    }
+                    return jsonArray;
+                })
+                .subscribe(results ->
+                                routingContext.response().setStatusCode(200).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(results.encodePrettily())
+                        , error ->
+                                routingContext.response().setStatusCode(500).putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(new JsonObject().put("error", getStackTrace(error)).encodePrettily())
+                );
     }
 
     @Override
