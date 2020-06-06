@@ -41,8 +41,8 @@ import java.util.UUID;
 public class ServerVerticle extends AbstractVerticle {
     private static final int serverPort = 8080;
 
-    private final String hostName = "json-server.reactive-demo.svc.cluster.local";
-    private final int port = 8080;
+    private final String json_server_service_ip = "172.30.34.144";
+    private final int json_server_port = 8080;
 
     private WebClient webClient;
 
@@ -75,8 +75,8 @@ public class ServerVerticle extends AbstractVerticle {
                 .flatMap(counter -> {
                     return reactiveCollection
                             .upsert(String.valueOf(counter), com.couchbase.client.java.json.JsonObject.create()
-                                    .put("host", hostName)
-                                    .put("port", port)
+                                    .put("host", json_server_service_ip)
+                                    .put("port", json_server_port)
                                     .put("identifier", "/" + String.valueOf(counter)));
                 })
                 .last()
@@ -109,7 +109,7 @@ public class ServerVerticle extends AbstractVerticle {
                         log.info("Server started at port: {0}", serverPort);
                         startPromise.complete();
                     } else {
-                        log.error("Server failed to start at port " + serverPort, result.cause());
+                        log.error("Server failed to start at " + serverPort, result.cause());
                         startPromise.fail(result.cause());
                     }
                 });
