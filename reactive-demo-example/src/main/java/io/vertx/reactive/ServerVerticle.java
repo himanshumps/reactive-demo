@@ -13,8 +13,10 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerOptions;
+import io.vertx.core.http.HttpVersion;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.reactivex.core.AbstractVerticle;
 import io.vertx.reactivex.core.RxHelper;
@@ -58,7 +60,7 @@ public class ServerVerticle extends AbstractVerticle {
         super.start();
 
         // Webclient
-        webClient = WebClient.create(vertx);
+        webClient = WebClient.create(vertx, new WebClientOptions().setProtocolVersion(HttpVersion.HTTP_2).setKeepAlive(true));
 
         //Couchbase
         ClusterEnvironment env = ClusterEnvironment.builder().ioConfig(IoConfig.maxHttpConnections(100)).timeoutConfig(TimeoutConfig.connectTimeout(Duration.ofSeconds(120))).build();
