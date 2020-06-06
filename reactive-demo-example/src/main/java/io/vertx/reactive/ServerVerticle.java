@@ -54,7 +54,14 @@ public class ServerVerticle extends AbstractVerticle {
         super.start();
 
         // Webclient
-        webClient = WebClient.create(vertx, new WebClientOptions().setProtocolVersion(HttpVersion.HTTP_2).setKeepAlive(true));
+        webClient = WebClient.create(vertx, new WebClientOptions()
+                .setProtocolVersion(HttpVersion.HTTP_2)
+                .setKeepAlive(true)
+                .setDefaultHost(json_server_service_ip)
+                .setDefaultPort(json_server_port)
+                .setSsl(false)
+                .setHttp2ClearTextUpgrade(false)
+                .setHttp2MaxPoolSize(10));
 
         //Couchbase
         ClusterEnvironment env = ClusterEnvironment.builder().ioConfig(IoConfig.maxHttpConnections(100)).timeoutConfig(TimeoutConfig.connectTimeout(Duration.ofSeconds(120))).build();
@@ -137,19 +144,16 @@ public class ServerVerticle extends AbstractVerticle {
                 .flatMap(new io.reactivex.rxjava3.functions.Function<com.couchbase.client.java.json.JsonObject, Publisher<JsonObject>>() {
                     @Override
                     public Publisher<JsonObject> apply(com.couchbase.client.java.json.JsonObject jsonObject) throws Throwable {
-                        long startTime = System.currentTimeMillis();
+                        final long startTimeVar = System.currentTimeMillis();
                         return RxJavaBridge.toV3Flowable(webClient
-                                .get(jsonObject.getInt("port"),
-                                        jsonObject.getString("host"),
-                                        jsonObject.getString("identifier"))
+                                .get(jsonObject.getString("identifier"))
                                 .expect(ResponsePredicate.status(200, 202))
                                 .rxSend()
                                 .observeOn(io.reactivex.schedulers.Schedulers.io())
                                 .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                     @Override
                                     public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                        long startTime = System.currentTimeMillis();
-                                        log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
+                                        log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTimeVar));
                                         return bufferHttpResponse.bodyAsJsonObject();
                                     }
                                 })
@@ -187,21 +191,21 @@ public class ServerVerticle extends AbstractVerticle {
                             .doOnNext(e -> log.info(MessageFormat.format("{0} | Time taken in getting the url for id: {1} is: {2} ms", uuid, id, System.currentTimeMillis() - startTime)));
                 })
                 .flatMap(jsonObject -> {
-                    long startTime = System.currentTimeMillis();
+                    final long startTimeVar = System.currentTimeMillis();
                     return RxJava2Adapter.singleToMono(webClient
-                            .get(jsonObject.getInt("port"),
-                                    jsonObject.getString("host"),
-                                    jsonObject.getString("identifier"))
+                            .get(jsonObject.getString("identifier"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
                             .observeOn(io.reactivex.schedulers.Schedulers.io())
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
+                                    log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTimeVar));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
-                            }));
+                            })
+
+                    );
 
                 })
                 .collectList()
