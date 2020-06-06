@@ -7,6 +7,7 @@ import com.couchbase.client.java.env.ClusterEnvironment;
 import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
 import io.reactivex.functions.Function;
 import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
@@ -25,6 +26,7 @@ import io.vertx.reactivex.ext.web.client.WebClient;
 import io.vertx.reactivex.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.reactivestreams.Publisher;
 import reactor.adapter.rxjava.RxJava2Adapter;
 import reactor.adapter.rxjava.RxJava3Adapter;
 import reactor.core.publisher.Flux;
@@ -134,23 +136,27 @@ public class ServerVerticle extends AbstractVerticle {
                             .toFlowable()
                             .doOnNext(e -> log.info(MessageFormat.format("{0} | Time taken in getting the url for id: {1} is: {2} ms", uuid, id, System.currentTimeMillis() - startTime)));
                 })
-                .flatMap(jsonObject -> {
-                    long startTime = System.currentTimeMillis();
-                    return RxJavaBridge.toV3Single(webClient
-                            .get(jsonObject.getInt("port"),
-                                    jsonObject.getString("host"),
-                                    jsonObject.getString("identifier"))
-                            .expect(ResponsePredicate.status(200, 202))
-                            .rxSend()
-                            .observeOn(io.reactivex.schedulers.Schedulers.io())
-                            .map(new Function<HttpResponse<Buffer>, JsonObject>() {
-                                @Override
-                                public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
-                                    return bufferHttpResponse.bodyAsJsonObject();
-                                }
-                            }))
-                            .toFlowable();
+                .flatMap(new io.reactivex.rxjava3.functions.Function<com.couchbase.client.java.json.JsonObject, Publisher<JsonObject>>() {
+                    @Override
+                    public Publisher<JsonObject> apply(com.couchbase.client.java.json.JsonObject jsonObject) throws Throwable {
+                        long startTime = System.currentTimeMillis();
+                        io.reactivex.Flowable<JsonObject> map = webClient
+                                .get(jsonObject.getInt("port"),
+                                        jsonObject.getString("host"),
+                                        jsonObject.getString("identifier"))
+                                .expect(ResponsePredicate.status(200, 202))
+                                .rxSend()
+                                .observeOn(io.reactivex.schedulers.Schedulers.io())
+                                .map(new Function<HttpResponse<Buffer>, JsonObject>() {
+                                    @Override
+                                    public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
+                                        log.info(MessageFormat.format("{0} | Received response for: {1} in {2} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime));
+                                        return bufferHttpResponse.bodyAsJsonObject();
+                                    }
+                                })
+                                .toFlowable();
+                        return RxJavaBridge.toV3Flowable(map);
+                    }
                 })
                 .toList()
                 .observeOn(Schedulers.io())
