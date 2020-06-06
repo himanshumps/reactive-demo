@@ -150,7 +150,7 @@ public class ServerVerticle extends AbstractVerticle {
                                 .get(jsonObject.getString("identifier"))
                                 .expect(ResponsePredicate.status(200, 202))
                                 .rxSend()
-                                .observeOn(io.reactivex.schedulers.Schedulers.io())
+                                //.observeOn(io.reactivex.schedulers.Schedulers.io())
                                 .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                     @Override
                                     public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
@@ -197,7 +197,7 @@ public class ServerVerticle extends AbstractVerticle {
                             .get(jsonObject.getString("identifier"))
                             .expect(ResponsePredicate.status(200, 202))
                             .rxSend()
-                            .observeOn(io.reactivex.schedulers.Schedulers.io())
+                            //.observeOn(io.reactivex.schedulers.Schedulers.io())
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
