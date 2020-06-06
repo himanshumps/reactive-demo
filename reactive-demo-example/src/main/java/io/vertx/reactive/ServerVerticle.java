@@ -8,6 +8,8 @@ import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
 import io.reactivex.functions.Function;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerOptions;
@@ -23,6 +25,7 @@ import io.vertx.reactivex.ext.web.client.WebClient;
 import io.vertx.reactivex.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.reactivestreams.Publisher;
 import reactor.adapter.rxjava.RxJava3Adapter;
 import reactor.core.publisher.Flux;
 
@@ -36,9 +39,8 @@ import java.util.UUID;
 
 @Slf4j
 public class ServerVerticle extends AbstractVerticle {
-    private static final int serverPort = 8080;
 
-    private final String hostName = "json-server.reactive-demo.svc.cluster.local";
+    private final String hostName = "json-server.test-reactive.svc.cluster.local";
     private final int port = 8080;
 
     private WebClient webClient;
@@ -55,7 +57,7 @@ public class ServerVerticle extends AbstractVerticle {
 
         //Couchbase
         ClusterEnvironment env = ClusterEnvironment.builder().ioConfig(IoConfig.maxHttpConnections(100)).timeoutConfig(TimeoutConfig.connectTimeout(Duration.ofSeconds(120))).build();
-        ReactiveCluster reactiveCluster = Cluster.connect("172.30.55.135", ClusterOptions
+        ReactiveCluster reactiveCluster = Cluster.connect("172.30.63.120", ClusterOptions
                 .clusterOptions("reactive", "reactive")
                 .environment(env)).reactive();
         ReactiveBucket reactiveBucket = reactiveCluster.bucket("reactive");
@@ -88,8 +90,6 @@ public class ServerVerticle extends AbstractVerticle {
 
         router.get("/rxjava3").handler(this::rxjava3);
 
-        router.get("/mutiny").handler(this::mutiny);
-
         router.get("/reactor").handler(this::reactor);
 
         // HTTP Server
@@ -99,12 +99,12 @@ public class ServerVerticle extends AbstractVerticle {
                 .setTcpNoDelay(true)
                 .setReusePort(true))
                 .requestHandler(router)
-                .listen(serverPort, result -> {
+                .listen(8080, result -> {
                     if (result.succeeded()) {
-                        log.info("Server started at port: {0}", serverPort);
+                        log.info("Server started at port: {0}", 8080);
                         startPromise.complete();
                     } else {
-                        log.error("Server failed to start at port " + serverPort, result.cause());
+                        log.error("Server failed to start at port 8080", result.cause());
                         startPromise.fail(result.cause());
                     }
                 });
@@ -117,17 +117,17 @@ public class ServerVerticle extends AbstractVerticle {
 
     private void rxjava3(RoutingContext routingContext) {
         final String uuid = UUID.randomUUID().toString();
-        Set<Integer> idSet = new HashSet<>();
-        do {
-            idSet.add((int) (Math.random() * 100));
-        } while (idSet.size() != 10);
         Flowable
                 .range(0, 100)
                 .observeOn(Schedulers.io())
                 .flatMap(id -> {
                     log.info("{} | Getting the url for id: {}", uuid, id);
-                    return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id))).observeOn(Schedulers.io()).map(getResult -> getResult.contentAsObject()).toFlowable();
-                })
+                    long startTime = System.currentTimeMillis();
+                    return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id)))
+                            .map(getResult -> getResult.contentAsObject())
+                            .toFlowable();
+                }, 100)
+                .observeOn(Schedulers.io())
                 .flatMap(jsonObject -> {
                     return RxJavaBridge.toV3Single(webClient
                             .get(jsonObject.getInt("port"),
@@ -138,12 +138,12 @@ public class ServerVerticle extends AbstractVerticle {
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info("{} | Received response for: {}", uuid, jsonObject.getString("url"));
+                                    log.info("{} | Received response for: {}", uuid, jsonObject.getString("identifier"));
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
                             }))
                             .toFlowable();
-                })
+                }, 100)
                 .observeOn(Schedulers.io())
                 .toList()
                 .map(listOfJsonResponses -> {
@@ -161,8 +161,6 @@ public class ServerVerticle extends AbstractVerticle {
                 );
     }
 
-    private void mutiny(RoutingContext routingContext) {
-    }
 
     private void reactor(RoutingContext routingContext) {
     }

@@ -55,6 +55,11 @@
             <artifactId>mutiny</artifactId>
             <version>0.5.2</version>
         </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny-reactor</artifactId>
+            <version>0.5.2</version>
+        </dependency>
         <!-- RxJava 3 -->
         <dependency>
             <groupId>io.reactivex.rxjava3</groupId>
