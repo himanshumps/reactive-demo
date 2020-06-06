@@ -128,10 +128,12 @@ public class ServerVerticle extends AbstractVerticle {
                     long startTime = System.currentTimeMillis();
                     return RxJava3Adapter.monoToSingle(reactiveCollection.get(String.valueOf(id)))
                             .map(getResult -> getResult.contentAsObject())
-                            .toFlowable();
+                            .toFlowable()
+                            .doOnNext(e -> log.info("{} | Time taken in getting the url for id: {} is :{} ms", uuid, id, System.currentTimeMillis() - startTime));
                 }, 100)
                 .observeOn(Schedulers.io())
                 .flatMap(jsonObject -> {
+                    long startTime = System.currentTimeMillis();
                     return RxJavaBridge.toV3Single(webClient
                             .get(jsonObject.getInt("port"),
                                     jsonObject.getString("host"),
@@ -141,7 +143,7 @@ public class ServerVerticle extends AbstractVerticle {
                             .map(new Function<HttpResponse<Buffer>, JsonObject>() {
                                 @Override
                                 public JsonObject apply(HttpResponse<Buffer> bufferHttpResponse) throws Exception {
-                                    log.info("{} | Received response for: {}", uuid, jsonObject.getString("identifier"));
+                                    log.info("{} | Received response for: {} in {} ms", uuid, jsonObject.getString("identifier"), System.currentTimeMillis() - startTime);
                                     return bufferHttpResponse.bodyAsJsonObject();
                                 }
                             }))
