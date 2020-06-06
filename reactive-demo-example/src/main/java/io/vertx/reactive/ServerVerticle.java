@@ -8,8 +8,6 @@ import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
 import io.reactivex.functions.Function;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
-import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerOptions;
@@ -19,7 +17,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.reactivex.core.AbstractVerticle;
-import io.vertx.reactivex.core.RxHelper;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
@@ -28,18 +25,13 @@ import io.vertx.reactivex.ext.web.client.WebClient;
 import io.vertx.reactivex.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
-import org.reactivestreams.Publisher;
 import reactor.adapter.rxjava.RxJava2Adapter;
 import reactor.adapter.rxjava.RxJava3Adapter;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 
@@ -93,11 +85,13 @@ public class ServerVerticle extends AbstractVerticle {
 
         router.route().handler(LoggerHandler.create(LoggerFormat.SHORT));
 
+        router.get("/").handler(request -> {
+            request.response().end("Welcome to reactive session ...");
+        });
+
         router.get("/health").handler(this::healthHandler);
 
         router.get("/rxjava3").handler(this::rxjava3);
-
-        router.get("/mutiny").handler(this::mutiny);
 
         router.get("/reactor").handler(this::reactor);
 
@@ -170,15 +164,10 @@ public class ServerVerticle extends AbstractVerticle {
                 );
     }
 
-    private void mutiny(RoutingContext routingContext) {
-        final String uuid = UUID.randomUUID().toString();
-
-    }
-
     private void reactor(RoutingContext routingContext) {
         final String uuid = UUID.randomUUID().toString();
         Flux
-                .range(0,100)
+                .range(0, 100)
                 .publishOn(reactor.core.scheduler.Schedulers.elastic())
                 .flatMap(id -> {
                     log.info("{} | Getting the url for id: {}", uuid, id);

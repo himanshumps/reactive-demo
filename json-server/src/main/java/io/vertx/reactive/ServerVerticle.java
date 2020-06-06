@@ -1,27 +1,20 @@
 package io.vertx.reactive;
 
-import hu.akarnokd.rxjava3.bridge.RxJavaBridge;
-import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.functions.Function;
 import io.vertx.core.Promise;
-import io.vertx.core.http.HttpHeaders;
-import io.vertx.core.http.HttpServerOptions;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.reactivex.core.AbstractVerticle;
-import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
-import io.vertx.reactivex.ext.web.client.HttpResponse;
-import io.vertx.reactivex.ext.web.client.WebClient;
 import io.vertx.reactivex.ext.web.handler.LoggerHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
 
 @Slf4j
 public class ServerVerticle extends AbstractVerticle {
@@ -40,6 +33,10 @@ public class ServerVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
 
         router.route().handler(LoggerHandler.create(LoggerFormat.SHORT));
+
+        router.get("/").handler(request -> {
+            request.response().end("Welcome to reactive session ...");
+        });
 
         router.get("/health").handler(this::healthHandler);
 
